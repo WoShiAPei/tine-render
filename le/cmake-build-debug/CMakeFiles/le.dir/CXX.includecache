@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+E:/tiny-render/le/geometry.h
+cmath
+-
+
+E:/tiny-render/le/main.cpp
+bits/stdc++.h
+-
+tgaimage.h
+E:/tiny-render/le/tgaimage.h
+model.h
+E:/tiny-render/le/model.h
+
+E:/tiny-render/le/model.h
+vector
+-
+geometry.h
+E:/tiny-render/le/geometry.h
+
+E:/tiny-render/le/tgaimage.h
+fstream
+-
+
