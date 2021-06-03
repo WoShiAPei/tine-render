@@ -9,6 +9,12 @@
 E:/tiny-render/le/geometry.h
 cmath
 -
+vector
+-
+cassert
+-
+iostream
+-
 
 E:/tiny-render/le/main.cpp
 bits/stdc++.h

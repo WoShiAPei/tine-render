@@ -10,91 +10,43 @@ Model* model = NULL;
 const int width = 800;
 const int height = 800;
 
-void line1(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color){
-    for(float t = 0.; t<1.; t+=.01){
-        int x = x0 + (x1-x0)*t;
-        int y = y0 + (y1-y0)*t;
-        image.set(x,y,color);
-    }
-}
-
-void line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color){
-    bool steep = false;
-    if (std::abs(x0-x1)<std::abs(y0-y1)){//没有洞，画得好看
-        std::swap(x0,y0);
-        std::swap(x1,y1);
-        steep = true;
-    }
-    if(x0>x1){
-        std::swap(x0,x1);
-        std::swap(y0,y1);
-    }
-    for(int x = x0; x<=x1; x++){
-        float t = (x-x0) / (float)(x1-x0);
-        int y = y0*(1.-t) + y1*t;
-        if(steep){
-            image.set(y,x,color);
-        }
-        else{
-            image.set(x,y,color);
-        }
-    }
-}
-void line(Vec2i t0,Vec2i t1,TGAImage& image, TGAColor color){
-    line(t0.x,t0.y,t1.x,t1.y,image,color);
-}
-
-void sweepLine(Vec2i t0,Vec2i t1,Vec2i t2,TGAImage& image, TGAColor color){//扫描线画三角形，两个part
-    int total_height = t2.y - t0.y;
-    int segement_height = t1.y - t0.y;
-    bool secondPart = false;
-    for(int i = 0;i<total_height;i++){
-        if(i>segement_height||i == segement_height){
-            secondPart = true;
-            segement_height = t2.y - t1.y;
-        }
-        int y = t0.y+i;
-        float alpha = (float)(y - t0.y) /total_height,beta;
-        Vec2i A,B;
-        if(secondPart){
-            beta = (float)(y - t1.y)/segement_height;
-            B = t1 + (t2-t1)*beta;
-        }
-        else{
-            beta = (float)(y - t0.y) / segement_height;
-            B = t0 + (t1-t0)*beta;
-        }
-        A = t0 + (t2-t0)*alpha;
-        if(A.x>B.x)swap(A,B);
-        for(int i = A.x;i<=B.x;i++){
-            image.set(i,y,color);
-        }
-    }
-}
 Vec3f cross(Vec3f A,Vec3f B){
     return Vec3f(A.y*B.z - B.y*A.z,-(A.x*B.z-B.x*A.z),A.x*B.y-B.x*A.y);
 }
 
-Vec3f Compute(Vec2i* pts,Vec2i p){
-    Vec3f uv = cross(Vec3f(pts[2].x - pts[0].x,pts[1].x - pts[0].x,  pts[0].x - p.x),Vec3f(pts[2].y - pts[0].y,pts[1].y - pts[0].y,  pts[0].y - p.y));
-    if(abs(uv.z)<1)return Vec3f(-1,1,1);
-    return Vec3f(1.f - (uv.x+uv.y)/uv.z,uv.x/uv.z,uv.y/uv.z);
+Vec3f Compute(Vec3f* pts,Vec3f p){
+    Vec3f s[2];
+    for(int i = 2;i--;){
+        cout<<i<<endl;
+        s[i][0] = pts[2][i] - pts[0][i];
+        s[i][1] = pts[1][i] - pts[0][i];
+        s[i][2] = pts[0][i] - p[i];
+    }
+    Vec3f u = cross(s[0],s[1]);
+    if(std::abs(u[2])>1e-2)
+        return Vec3f(1.f - (u.x+u.y)/u.z,u.y/u.z,u.x/u.z);
+    return Vec3f(-1,1,1);
 }
 
-void barycentric(Vec2i* pts,TGAImage& image, TGAColor color){//插值，包围框内选点
-    Vec2i MinBox(image.get_width()-1,image.get_height()-1);
-    Vec2i MaxBox(0,0);
+void barycentric(Vec3f* pts,float* zbuffer,TGAImage& image, TGAColor color){//插值，包围框内选点
+    Vec2f MinBox(image.get_width()-1,image.get_height()-1);
+    Vec2f MaxBox(0,0);
     for(int i = 0;i<3;i++){
-        MinBox.x = max(0,min(MinBox.x,pts[i].x));
-        MinBox.y = max(0,min(MinBox.y,pts[i].y));
-        MaxBox.x = min(image.get_width()-1,max(MaxBox.x,pts[i].x));
-        MaxBox.y = min(image.get_height()-1,max(MaxBox.y,pts[i].y));
+        MinBox.x = max(0.0f,min(MinBox.x,pts[i].x));
+        MinBox.y = max(0.0f,min(MinBox.y,pts[i].y));
+        MaxBox.x = min(image.get_width()-1.0f,max(MaxBox.x,pts[i].x));
+        MaxBox.y = min(image.get_height()-1.0f,max(MaxBox.y,pts[i].y));
     }
     for(int i = MinBox.x;i<=MaxBox.x;i++){
         for(int j = MinBox.y;j<=MaxBox.y;j++){
-            Vec3f temp = Compute(pts,Vec2i(i,j));
+            Vec3f temp = Compute(pts,Vec3f(i,j,0));
             if(temp.x<0||temp.y<0||temp.z<0)continue;
-            image.set(i,j,color);
+            float z = 0;
+            for(int i = 0;i<3;i++)z += pts[i][2]*temp[i];
+            if(zbuffer[int(i+j*width)]<z){
+                zbuffer[int(i+j*width)] = z;
+                image.set(i,j,color);
+            }
         }
     }
 }
@@ -102,29 +54,17 @@ void barycentric(Vec2i* pts,TGAImage& image, TGAColor color){//插值，包围�
 void triangle(Vec2i t0,Vec2i t1,Vec2i t2,TGAImage& image, TGAColor color){
     //sweepLine(t0,t1,t2,image,color);
     Vec2i pts[3] = {t0,t1,t2};
-    barycentric(pts,image,color);
+    //barycentric(pts,image,color);
 }
-
-void rasterize(Vec2i p0,Vec2i p1,TGAImage &image,TGAColor color,int ybuffer[]){//ybuffer存y这一维的可见值？
-    if(p0.x>p1.x){//保证x维有序
-        std::swap(p0,p1);
-    }
-    for(int x = p0.x;x<=p1.x;x++){
-        float t = (x - p0.x)/(float )(p1.x - p0.x);
-        int y = p0.y*(1.-t) + p1.y*t;
-        if(ybuffer[x]<y){
-            ybuffer[x] = y;
-            image.set(x,0,color);
-        }
-    }
+Vec3f world2screen(Vec3f v){
+    return Vec3f (int ((v.x+1.0)*width/2.+5),int((v.y+1.)*height/2.+5),v.z);
 }
 
 int main() {
     float *zbuffer = new float [width*height];
-//    for(int i = width*height-1;i>=0;i--){
-//        zbuffer[i] = -std::numeric_limits<float>::max();
-//        cout<<zbuffer[i]<<endl;
-//    }
+    for(int i = width*height-1;i>=0;i--){
+        zbuffer[i] = -std::numeric_limits<float>::max();
+    }
 
 
     TGAImage image(width,height,TGAImage::RGB);
@@ -132,21 +72,15 @@ int main() {
     Vec3f light_dir = {0,0,-1};
     for(int i = 0;i<model->nfaces();i++){
         std::vector<int> face = model->face(i);
-        Vec2i screen_cords[3];
-        Vec3f world_cords[3];
+        Vec3f pts[3];
         for(int j = 0;j<3;j++){
             Vec3f v0 = model->vert(face[j]);
-            screen_cords[j] = Vec2i((v0.x+1.0)*width/2.,(v0.y+1.0)*height/2.);//屏幕坐标
-            world_cords[j] = v0;
+            pts[j] = world2screen(v0);
         }
-        Vec3f n = (world_cords[2] - world_cords[0])^(world_cords[1] - world_cords[0]);//叉积
-        n.normalize();
-        float intensity = n*light_dir;
-        //triangle(screen_cords[0], screen_cords[1], screen_cords[2], image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
-        if(intensity>0)triangle(screen_cords[0],screen_cords[1],screen_cords[2],image,TGAColor(intensity*255, intensity*255, intensity*255, 255));
+        barycentric(pts,zbuffer, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
     }
     image.flip_vertically();
-    image.write_tga_file("color_LightModel.tga");
+    image.write_tga_file("z_buffer.tga");
 
     delete model;
     return 0;
