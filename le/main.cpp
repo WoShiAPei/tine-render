@@ -9,7 +9,7 @@ const TGAColor blue = TGAColor(0,0,255,255);
 Model* model = NULL;
 const int width = 800;
 const int height = 800;
-
+#define fuck(x) cout<<x<<endl
 Vec3f cross(Vec3f A,Vec3f B){
     return Vec3f(A.y*B.z - B.y*A.z,-(A.x*B.z-B.x*A.z),A.x*B.y-B.x*A.y);
 }
@@ -17,7 +17,6 @@ Vec3f cross(Vec3f A,Vec3f B){
 Vec3f Compute(Vec3f* pts,Vec3f p){
     Vec3f s[2];
     for(int i = 2;i--;){
-        cout<<i<<endl;
         s[i][0] = pts[2][i] - pts[0][i];
         s[i][1] = pts[1][i] - pts[0][i];
         s[i][2] = pts[0][i] - p[i];
@@ -28,7 +27,7 @@ Vec3f Compute(Vec3f* pts,Vec3f p){
     return Vec3f(-1,1,1);
 }
 
-void barycentric(Vec3f* pts,float* zbuffer,TGAImage& image, TGAColor color){//插值，包围框内选点
+void barycentric(Vec3f* pts,Vec3f* tex,float* zbuffer,TGAImage& image,TGAImage& image1){//插值，包围框内选点
     Vec2f MinBox(image.get_width()-1,image.get_height()-1);
     Vec2f MaxBox(0,0);
     for(int i = 0;i<3;i++){
@@ -39,13 +38,18 @@ void barycentric(Vec3f* pts,float* zbuffer,TGAImage& image, TGAColor color){//�
     }
     for(int i = MinBox.x;i<=MaxBox.x;i++){
         for(int j = MinBox.y;j<=MaxBox.y;j++){
-            Vec3f temp = Compute(pts,Vec3f(i,j,0));
+            Vec3f temp = Compute(pts,Vec3f(i,j,0));//返回的1-(u+v),u,v 用这三个值对三角形的三个顶点进行插值，纹理同理
             if(temp.x<0||temp.y<0||temp.z<0)continue;
             float z = 0;
-            for(int i = 0;i<3;i++)z += pts[i][2]*temp[i];
+            float px = 0;
+            float py = 0;
+            for(int k = 0;k<3;k++)z += pts[k][2]*temp[k], px+=tex[k][0]*temp[k],py+=tex[k][1]*temp[k];
+            px*=(image1.get_width()-1);
+            py*=(image1.get_height()-1);
+          //  cout<<px<<" "<<py<<endl;
             if(zbuffer[int(i+j*width)]<z){
                 zbuffer[int(i+j*width)] = z;
-                image.set(i,j,color);
+                image.set(i,j,image1.get(px,py));
             }
         }
     }
@@ -61,26 +65,30 @@ Vec3f world2screen(Vec3f v){
 }
 
 int main() {
+    TGAImage image1;
+    image1.read_tga_file("../obj/african_head_diffuse.tga");
+    image1.flip_vertically();
     float *zbuffer = new float [width*height];
     for(int i = width*height-1;i>=0;i--){
         zbuffer[i] = -std::numeric_limits<float>::max();
     }
-
-
     TGAImage image(width,height,TGAImage::RGB);
     model = new Model("../obj/african_head.obj");
     Vec3f light_dir = {0,0,-1};
     for(int i = 0;i<model->nfaces();i++){
         std::vector<int> face = model->face(i);
+        std::vector<int> texture_face = model->texture(i);
         Vec3f pts[3];
+        Vec3f tex[3];
         for(int j = 0;j<3;j++){
             Vec3f v0 = model->vert(face[j]);
             pts[j] = world2screen(v0);
+            tex[j] = model->texture_vert(texture_face[j]);
         }
-        barycentric(pts,zbuffer, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
+        barycentric(pts,tex,zbuffer, image, image1);
     }
     image.flip_vertically();
-    image.write_tga_file("z_buffer.tga");
+    image.write_tga_file("texture.tga");
 
     delete model;
     return 0;
