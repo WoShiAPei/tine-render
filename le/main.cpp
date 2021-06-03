@@ -120,34 +120,35 @@ void rasterize(Vec2i p0,Vec2i p1,TGAImage &image,TGAColor color,int ybuffer[]){/
 }
 
 int main() {
-    {
-        TGAImage scene(width, height, TGAImage::RGB);
-        line(Vec2i(20, 34), Vec2i(744, 400), scene, red);
-        line(Vec2i(120, 434), Vec2i(444, 400), scene, green);
-        line(Vec2i(330, 463), Vec2i(594, 200), scene, blue);
+    float *zbuffer = new float [width*height];
+//    for(int i = width*height-1;i>=0;i--){
+//        zbuffer[i] = -std::numeric_limits<float>::max();
+//        cout<<zbuffer[i]<<endl;
+//    }
 
-        line(Vec2i(10, 10), Vec2i(790, 10), scene, white);
 
-        scene.flip_vertically();
-        scene.write_tga_file("scene.tga");
-    }
-
-    {
-        TGAImage render(width,16,TGAImage::RGB);
-        int ybuffer[width];
-        for(int i = 0;i<width;i++){
-            ybuffer[i] = std::numeric_limits<int>::min();//2^-31
+    TGAImage image(width,height,TGAImage::RGB);
+    model = new Model("../obj/african_head.obj");
+    Vec3f light_dir = {0,0,-1};
+    for(int i = 0;i<model->nfaces();i++){
+        std::vector<int> face = model->face(i);
+        Vec2i screen_cords[3];
+        Vec3f world_cords[3];
+        for(int j = 0;j<3;j++){
+            Vec3f v0 = model->vert(face[j]);
+            screen_cords[j] = Vec2i((v0.x+1.0)*width/2.,(v0.y+1.0)*height/2.);//屏幕坐标
+            world_cords[j] = v0;
         }
-        rasterize(Vec2i(20, 34),   Vec2i(744, 400), render, red,   ybuffer);
-        rasterize(Vec2i(120, 434), Vec2i(444, 400), render, green, ybuffer);
-        rasterize(Vec2i(330, 463), Vec2i(594, 200), render, blue,  ybuffer);
-        render.flip_vertically();
-        render.write_tga_file("render.tga");
+        Vec3f n = (world_cords[2] - world_cords[0])^(world_cords[1] - world_cords[0]);//叉积
+        n.normalize();
+        float intensity = n*light_dir;
+        //triangle(screen_cords[0], screen_cords[1], screen_cords[2], image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
+        if(intensity>0)triangle(screen_cords[0],screen_cords[1],screen_cords[2],image,TGAColor(intensity*255, intensity*255, intensity*255, 255));
     }
+    image.flip_vertically();
+    image.write_tga_file("color_LightModel.tga");
 
-    int *zbuffer = new int[width*height];
-
-
+    delete model;
     return 0;
 }
 /*
@@ -173,26 +174,5 @@ int main() {
     sort(t1,t1+3);
     sort(t2,t2+3);
 
-        model = new Model("../obj/african_head.obj");
-    Vec3f light_dir = {0,0,-1};
-    for(int i = 0;i<model->nfaces();i++){
-        std::vector<int> face = model->face(i);
-        Vec2i screen_cords[3];
-        Vec3f world_cords[3];
-        for(int j = 0;j<3;j++){
-            Vec3f v0 = model->vert(face[j]);
-            screen_cords[j] = Vec2i((v0.x+1.0)*width/2.,(v0.y+1.0)*height/2.);//屏幕坐标
-            world_cords[j] = v0;
-        }
-        Vec3f n = (world_cords[2] - world_cords[0])^(world_cords[1] - world_cords[0]);//叉积
-        n.normalize();
-        float intensity = n*light_dir;
-        //triangle(screen_cords[0], screen_cords[1], screen_cords[2], image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
-        if(intensity>0)triangle(screen_cords[0],screen_cords[1],screen_cords[2],image,TGAColor(intensity*255, intensity*255, intensity*255, 255));
-    }
-    image.flip_vertically();
-    image.write_tga_file("color_LightModel.tga");
 
-    delete model;
-    }
  */
